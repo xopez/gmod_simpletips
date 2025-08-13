@@ -39,8 +39,8 @@ if SERVER then
     end
 
     local config = loadOrCreateConfig()
+    local lastConfigJSON = util.TableToJSON(config, false)
 
-    -- send config to a specific player
     local function sendConfigToClient(ply)
         net.Start("SimpleTips_SendConfig")
         net.WriteUInt(config.interval, 16)
@@ -51,9 +51,23 @@ if SERVER then
         net.Send(ply)
     end
 
-    -- send when player joins
     hook.Add("PlayerInitialSpawn", "SimpleTips_SendConfigOnJoin", function(ply)
         sendConfigToClient(ply)
+    end)
+
+    -- check every 10 seconds for changes
+    timer.Create("SimpleTips_CheckConfig", 10, 0, function()
+        local newConfig = loadOrCreateConfig()
+        local newJSON = util.TableToJSON(newConfig, false)
+
+        if newJSON ~= lastConfigJSON then
+            config = newConfig
+            lastConfigJSON = newJSON
+            print("[SimpleTips] Config changed – sent to all players.")
+            for _, ply in ipairs(player.GetAll()) do
+                sendConfigToClient(ply)
+            end
+        end
     end)
 end
 
