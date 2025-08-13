@@ -1,55 +1,76 @@
-simpletips = simpletips or {
-    config = {},
+--[[
+	SimpleTips - Single File Version with Config in /data + Detailed Validation
+]]
+--
 
-    IDENTIFIER = "simpletips",
-    NICE_NAME = "simpletips"
+local defaultConfig = {
+    interval = 120, -- seconds between tips
+    tips = {
+        "Tip 1",
+        "Tip 2",
+        "Tip 3",
+    },
 }
 
+local configFile = "simpletips_config.txt"
+local tipconfig = table.Copy(defaultConfig)
+local enabled = true
 
-local version = 1
-
-if not frile or frile.VERSION < version then
-    frile = {
-        VERSION = version,
-
-        STATE_SERVER = 0,
-        STATE_CLIENT = 1,
-        STATE_SHARED = 2
-    }
-
-    function frile.includeFile( filename, state )
-        if state == frile.STATE_SHARED or filename:find( "sh_" ) then
-            if SERVER then AddCSLuaFile( filename ) end
-            include( filename )
-        elseif state == frile.STATE_SERVER or SERVER and filename:find( "sv_" ) then
-            include( filename )
-        elseif state == frile.STATE_CLIENT or filename:find( "cl_" ) then
-            if SERVER then AddCSLuaFile( filename )
-            else include( filename ) end
+-- Validation function
+local function validateConfig(cfg)
+    if type(cfg) ~= "table" then
+        return false, "Config is not a table."
+    end
+    if type(cfg.interval) ~= "number" or cfg.interval <= 0 then
+        return false, "'interval' must be a positive number."
+    end
+    if type(cfg.tips) ~= "table" or #cfg.tips == 0 then
+        return false, "'tips' must be a non-empty table."
+    end
+    for i, tip in ipairs(cfg.tips) do
+        if type(tip) ~= "string" or tip == "" then
+            return false, ("Tip at index %d is not a valid non-empty string."):format(i)
         end
     end
+    return true
+end
 
-    function frile.includeFolder( currentFolder, ignoreFilesInFolder, ignoreFoldersInFolder )
-        if file.Exists( currentFolder .. "sh_frile.lua", "LUA" ) then
-            frile.includeFile( currentFolder .. "sh_frile.lua" )
-
-            return
+-- Load config from /data
+local function loadConfig()
+    if file.Exists(configFile, "DATA") then
+        local content = file.Read(configFile, "DATA")
+        local loaded = util.JSONToTable(content)
+        local valid, reason = validateConfig(loaded)
+        if valid then
+            tipconfig = loaded
+        else
+            print("[SimpleTips] Invalid config detected! Tips have been disabled.")
+            print("[SimpleTips] Reason: " .. tostring(reason))
+            print("[SimpleTips] Expected format:")
+            print(util.TableToJSON(defaultConfig, true))
+            enabled = false
         end
-
-        local files, folders = file.Find( currentFolder .. "*", "LUA" )
-
-        if not ignoreFilesInFolder then
-            for _, File in ipairs( files ) do
-                frile.includeFile( currentFolder .. File )
-            end
-        end
-
-        if not ignoreFoldersInFolder then
-            for _, folder in ipairs( folders ) do
-                frile.includeFolder( currentFolder .. folder .. "/" )
-            end
-        end
+    else
+        file.Write(configFile, util.TableToJSON(defaultConfig, true))
+        print("[SimpleTips] Default config created at /data/" .. configFile)
     end
 end
-frile.includeFolder( "simpletips/", false, true )
-frile.includeFolder( "simpletips/module/" )
+
+loadConfig()
+
+-- Client-side tip loop
+if CLIENT and enabled then
+    local tipCount = #tipconfig.tips
+    if tipCount > 0 then
+        local index = math.random(tipCount) -- random start
+        timer.Create("simpletips_timer", tipconfig.interval, 0, function()
+            chat.AddText(
+                Color(4, 109, 6),
+                "[SimpleTips] ",
+                Color(255, 255, 255),
+                tipconfig.tips[index]
+            )
+            index = (index % tipCount) + 1
+        end)
+    end
+end
