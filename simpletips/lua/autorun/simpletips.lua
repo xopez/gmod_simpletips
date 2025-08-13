@@ -12,7 +12,7 @@ local defaultConfig = {
     },
 }
 
-local configFile = "simpletips_config.txt"
+local configFile = "simpletips_config.json"
 local tipconfig = table.Copy(defaultConfig)
 local enabled = true
 
