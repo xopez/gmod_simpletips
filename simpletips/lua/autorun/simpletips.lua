@@ -1,40 +1,55 @@
--- SimpleTips configuration
-local configPath = "data/simpletips/file"
-local defaultConfig = {
-    interval = 120,
-    tips = {
-        "Tip 1",
-        "Tip 2",
-        "Tip 3",
-    },
+simpletips = simpletips or {
+    config = {},
+
+    IDENTIFIER = "simpletips",
+    NICE_NAME = "simpletips"
 }
 
--- Load configuration
-local function loadConfig()
-    if not file.Exists(configPath, "DATA") then
-        file.Write(configPath, util.TableToJSON(defaultConfig, true))
-        return defaultConfig
-    end
-    local data = file.Read(configPath, "DATA")
-    local config = util.JSONToTable(data)
-    if not config or type(config) ~= "table" or not config.interval or not config.tips then
-        print("SimpleTips: Invalid configuration, addon disabled.")
-        return nil
-    end
-    return config
-end
 
-local tipconfig = loadConfig()
+local version = 1
 
--- Show tips regularly if configuration is valid
-if tipconfig then
-    local lastTip
-    timer.Create("simpletips_timer", tipconfig.interval, 0, function()
-        local Tip = table.Random(tipconfig.tips)
-        if Tip == lastTip then
-            Tip = table.Random(tipconfig.tips)
+if not frile or frile.VERSION < version then
+    frile = {
+        VERSION = version,
+
+        STATE_SERVER = 0,
+        STATE_CLIENT = 1,
+        STATE_SHARED = 2
+    }
+
+    function frile.includeFile( filename, state )
+        if state == frile.STATE_SHARED or filename:find( "sh_" ) then
+            if SERVER then AddCSLuaFile( filename ) end
+            include( filename )
+        elseif state == frile.STATE_SERVER or SERVER and filename:find( "sv_" ) then
+            include( filename )
+        elseif state == frile.STATE_CLIENT or filename:find( "cl_" ) then
+            if SERVER then AddCSLuaFile( filename )
+            else include( filename ) end
         end
-        lastTip = Tip
-        chat.AddText(Color(4, 109, 6), "[SimpleTips] ", Color(255, 255, 255), Tip)
-    end)
+    end
+
+    function frile.includeFolder( currentFolder, ignoreFilesInFolder, ignoreFoldersInFolder )
+        if file.Exists( currentFolder .. "sh_frile.lua", "LUA" ) then
+            frile.includeFile( currentFolder .. "sh_frile.lua" )
+
+            return
+        end
+
+        local files, folders = file.Find( currentFolder .. "*", "LUA" )
+
+        if not ignoreFilesInFolder then
+            for _, File in ipairs( files ) do
+                frile.includeFile( currentFolder .. File )
+            end
+        end
+
+        if not ignoreFoldersInFolder then
+            for _, folder in ipairs( folders ) do
+                frile.includeFolder( currentFolder .. folder .. "/" )
+            end
+        end
+    end
 end
+frile.includeFolder( "simpletips/", false, true )
+frile.includeFolder( "simpletips/module/" )
